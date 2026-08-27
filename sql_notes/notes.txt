@@ -1,0 +1,185 @@
+1.  Difference between ROW_NUMBER, RANK, DENSE_RANK
+    -----------------------------------------------
+    ROW_NUMBER()
+        Always gives unique numbers
+        No ties
+        If two rows have same value, one still gets 1, the other gets 2
+        Used for deduplication and latest record per group
+
+    RANK()
+        Gives same rank for ties
+        But skips numbers  
+        Example:
+            Values: 100, 100, 90
+            Ranks: 1, 1, 3
+
+    DENSE_RANK()
+        Same rank for ties
+        Does NOT skip numbers  
+        Example:
+            Values: 100, 100, 90
+            Dense ranks: 1, 1, 2
+    
+    When to use what:
+        ROW_NUMBER → pick latest record, dedupe
+        RANK → competition scoring
+        DENSE_RANK → top‑N per group without gaps
+
+2. Why window functions cannot be used in WHERE clause
+   -----------------------------------------------
+    SQL execution order:
+        FROM
+        WHERE
+        GROUP BY
+        HAVING
+        SELECT
+        WINDOW FUNCTIONS
+        ORDER BY
+        Window functions are computed after WHERE, so WHERE cannot reference them.
+
+        Correct way:
+            Use a subquery:
+                SELECT *
+                FROM (
+                    SELECT *,
+                        ROW_NUMBER() OVER(PARTITION BY category ORDER BY revenue DESC) AS rn
+                    FROM sales
+                ) t
+                WHERE rn <= 3;
+
+3. How to optimize slow window‑function queries
+  -----------------------------------------------
+    1. Reduce partition size
+        Large partitions = slow.
+        Partition by small cardinality columns.
+
+    2. Use ROWS BETWEEN instead of RANGE
+        RANGE is expensive because it scans values.
+        ROWS BETWEEN is faster.
+
+    3. Avoid ORDER BY on high‑cardinality columns
+        Sorting millions of rows per partition is expensive.
+
+    4. Use clustered tables or Z‑ORDER in Databricks
+        Improves partition pruning.
+
+    5. Pre‑aggregate before window functions
+        Reduce data volume.
+
+
+4. Difference between unix_timestamp and datediff
+  -----------------------------------------------
+  🎯 unix_timestamp()
+        Purpose: Converts a timestamp/date into seconds since 1970‑01‑01 (epoch time).
+        Use cases:
+            Calculating precise time differences (seconds, minutes, hours)
+            Detecting gaps in time‑series data
+            Comparing timestamps with high precision
+            Example:
+                unix_timestamp('2024-01-01 10:00:00')
+                Returns something like: 1704103200
+            Difference calculation:
+                unix_timestamp(t1) - unix_timestamp(t2)
+                Gives seconds difference.
+  🎯 datediff()
+        Purpose: Returns the number of days between two dates.
+        Use cases:
+            Age calculation
+            Days between events
+            Billing cycles
+            Subscription durations
+            Example:
+                datediff('2024-01-10', '2024-01-01')
+                Returns: 9
+  ⭐ Key Difference:
+        Function	        Measures	Precision	Typical Use
+        --------------------------------------------------------
+        unix_timestamp()	Seconds	    High	    Time‑series, gaps, fraud detection
+        datediff()	        Days	    Low	        Date differences, reporting
+
+        If you need seconds/minutes → use unix_timestamp  
+        If you need days → use datediff
+
+5. What is percent_rank()? Difference from rank()
+-------------------------------------------------
+  🎯 percent_rank()
+        Percent rank gives a value between 0 and 1 showing where a row stands relative to others in its partition.
+        Formula:
+            percent_rank =  rank-1 / totalrows-1
+        Example:
+            If a student is ranked 3rd out of 10: 3-1/10-1 = 2/9 =0.22
+            Meaning:  They are 22% from the bottom of the group.
+
+  🎯 Difference between percent_rank() and rank()
+    rank()
+        Gives integer ranks (1, 2, 3…)
+        Ties get same rank
+        Gaps appear
+    percent_rank()
+        Gives decimal values between 0 and 1
+        Shows relative position
+        No gaps
+        Used for percentiles, distribution analysis
+
+    ⭐ When to use what
+        Use Case	                Function
+        ------------------------------------
+        Competition scoring	         rank()
+        Percentile analysis	       percent_rank()
+        Normalizing scores	       percent_rank()
+        Top‑N selection	         rank() or dense_rank()
+
+
+6. Difference between CTE and subquery — When to use what
+  --------------------------------------------------------
+    🎯 CTE (WITH clause)
+        A CTE is a named temporary result that improves readability and can be reused.
+            WITH cte AS (
+                SELECT ...
+            )
+            SELECT * FROM cte;
+        ✔ Advantages
+            More readable
+            Can be referenced multiple times
+            Supports recursion
+            Easier debugging
+            Cleaner for multi‑step logic
+    🎯 Subquery
+        A subquery is an inline query inside SELECT, FROM, WHERE, HAVING.
+        SELECT *
+            FROM (
+                SELECT ...
+            ) t
+        ✔ Advantages
+            Good for simple one‑off logic
+            Useful when you don’t need reuse
+            Works well inside WHERE/HAVING
+    ⭐ Key Differences (Senior‑Level)
+        Feature	           CTE	           Subquery
+        --------------------------------------------
+        Readabiity	       High	            Medium
+        Reusability	       Yes	            No
+        Recursion	       Yes	            No
+        Performance	       Same     	    Same
+        Best for	   Multi‑step logic  	Simple filtering    
+    ⭐ When to use what
+        ✔ Use CTE when:
+            Query has multiple steps
+            You need to reference the same logic more than once
+            You want cleaner, readable SQL
+            You need recursive queries (hierarchies, org charts)
+        ✔ Use Subquery when:
+            Logic is simple
+            You only need the result once
+            You want a compact query
+            You’re filtering based on a window function (because WHERE cannot use window functions)
+            
+7. Category	                         Functions
+   ----------------------------------------------------------------
+   Ranking	          ROW_NUMBER, RANK, DENSE_RANK, NTILE
+   Value	          LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE
+   Aggregate	      SUM, AVG, MIN, MAX, COUNT
+   Distribution       PERCENT_RANK, CUME_DIST, PERCENTILE_CONT, PERCENTILE_DISC
+   Frame	          ROWS BETWEEN, RANGE BETWEEN
+   Partition/Order    PARTITION BY, ORDER BY
+   Helpers	          DATE_TRUNC, DATEDIFF, UNIX_TIMESTAMP, CASE WHEN
